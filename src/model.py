@@ -64,10 +64,10 @@ class Trainer(Preproceessing):
             total += label.size(0)
             correct += (pred == label).sum().item()
         epoch_loss = train_loss / len(self.train_loader)
-        self.logger.info(f">> Loss: {epoch_loss:.2f}, Accuracy: {((correct/total)):.2f}")
+        self.logger.info(f">> Training Loss: {epoch_loss:.2f}, Accuracy: {((correct/total)):.2f}")
         return epoch_loss
 
-    def eval_loss(self) -> int:
+    def val_loss(self) -> int:
         self.model.eval()
         total_loss = 0
         correct, total = 0, 0
@@ -82,7 +82,7 @@ class Trainer(Preproceessing):
                 total += label.size(0)
                 correct += (pred == label).sum().item()
         eval_loss = total_loss / len(self.val_loader)
-        self.logger.info(f'>> Test Accuracy: {100 * (correct / total):.2f}%')
+        self.logger.info(f'>> Validate Loss: {eval_loss:.2f} Accuracy: {(correct / total):.2f}')
         return eval_loss
 
 
@@ -94,7 +94,7 @@ class Trainer(Preproceessing):
             epoch_loss = self.train_epoch()
             train_losses.append(epoch_loss)
 
-            test_loss = self.eval_loss()
+            test_loss = self.val_loss()
             test_losses.append(test_loss)
 
         return train_losses, test_losses
