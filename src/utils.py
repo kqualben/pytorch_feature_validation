@@ -1,12 +1,15 @@
-from typing import Optional, Dict, List
-import matplotlib.pyplot as plt
 import json
+import logging
 import os
 import pickle
-import logging
+from typing import Dict, List, Optional
+
+import matplotlib.pyplot as plt
 
 
-def plot_losses(train: List[float], test: List[float], save: Optional[str]) -> plt.figure:
+def plot_losses(
+    train: List[float], test: List[float], save: Optional[str]
+) -> plt.figure:
     """
     function to plot train vs test losses.
 
@@ -17,17 +20,18 @@ def plot_losses(train: List[float], test: List[float], save: Optional[str]) -> p
     :return plt.figure:
     """
     plt.figure()
-    plt.plot(train, label='Train Loss', color='blue')
-    plt.plot(test, label= 'Test Loss', color='red')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.title('Train vs Test Loss')
+    plt.plot(train, label="Train Loss", color="blue")
+    plt.plot(test, label="Test Loss", color="red")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Train vs Test Loss")
     plt.legend()
     plt.tight_layout()
     if save:
         plt.savefig(save)
         plt.close()
     return plt.show()
+
 
 def save_json(data: dict, directory: str, filename: str) -> str:
     """
@@ -44,6 +48,7 @@ def save_json(data: dict, directory: str, filename: str) -> str:
         json.dump(data, f)
     print(f"File saved to: {location}")
     return location
+
 
 def open_json(path: str) -> Dict:
     """
@@ -88,6 +93,7 @@ def open_pickle(path: str) -> Dict:
     with open(path, "rb") as f:
         data = pickle.load(f)
     return data
+
 
 def logger(directory: str, filename: str):
     """

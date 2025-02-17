@@ -1,9 +1,10 @@
 import os
-from src.model import Trainer
+
 from src.configs import TrainConfig
+from src.model import Trainer
 
 train_dict = {
-    "epochs" : 10,
+    "epochs": 10,
     "batches": 32,
     "learning_rate": 0.0001,
     "save_fig": True,
