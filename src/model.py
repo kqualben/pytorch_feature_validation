@@ -62,10 +62,9 @@ class Trainer(Preproceessing):
             _, pred = torch.max(output.data, 1)
             total += label.size(0)
             correct += (pred == label).sum().item()
-
-            epoch_loss = train_loss / len(self.train_loader)
-            self.logger.info(f">> Loss: {epoch_loss:.2f}, Accuracy: {(100*(correct/total))}")
-            return epoch_loss
+        epoch_loss = train_loss / len(self.train_loader)
+        self.logger.info(f">> Loss: {epoch_loss:.2f}, Accuracy: {(100*(correct/total))}")
+        return epoch_loss
 
     def eval_loss(self) -> int:
         self.model.eval()
@@ -81,8 +80,9 @@ class Trainer(Preproceessing):
                 _, pred = torch.max(output.data, 1)
                 total += label.size(0)
                 correct += (pred == label).sum().item()
-        self.logger.info(f'>> Test Accuracy: {100 * correct / total:.2f}%')
-        return total_loss / len(self.test_loader)
+        eval_loss = correct / total
+        self.logger.info(f'>> Test Accuracy: {100 * eval_loss:.2f}%')
+        return eval_loss / len(self.test_loader)
 
 
     def train(self, num_epochs:int) -> Tuple[List, List]:
