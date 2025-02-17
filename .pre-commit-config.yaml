@@ -1,0 +1,21 @@
+---
+repos:
+  - repo: https://github.com/psf/black
+    rev: 22.3.0
+    hooks:
+      - id: black
+        name: "Black (python code formatting)"
+        entry: bash -c 'black "$@";' --
+        language: python
+        types: [ python ]
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black", "--filter-files"]
+        name: "isort (python library formatter)"
+        entry: bash -c 'isort "$@";' --
+        language: python
+        types: [ python ]
+        
