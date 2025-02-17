@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 import matplotlib.pyplot as plt
 import json
 import os
@@ -6,7 +6,16 @@ import pickle
 import logging
 
 
-def plot_losses(train, test, save: Optional[str]) -> plt.figure:
+def plot_losses(train: List[float], test: List[float], save: Optional[str]) -> plt.figure:
+    """
+    function to plot train vs test losses.
+
+    :param List[float] train: list of train losses
+    :param List[float] test: list of test losses
+    :param Optional[str] save: save plot to given path. If falsey, then the plot wont be saved.
+
+    :return plt.figure:
+    """
     plt.figure()
     plt.plot(train, label='Train Loss', color='blue')
     plt.plot(test, label= 'Test Loss', color='red')
@@ -18,7 +27,7 @@ def plot_losses(train, test, save: Optional[str]) -> plt.figure:
     if save:
         plt.savefig(save)
         plt.close()
-    plt.show()
+    return plt.show()
 
 def save_json(data: dict, directory: str, filename: str) -> str:
     """
