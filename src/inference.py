@@ -1,10 +1,6 @@
-# from data_processing import Preproceessing
 import os
 from model import Trainer
-
 import matplotlib.pyplot as plt
-
-# data_processor = Preproceessing(root = os.getcwd())
 
 trainer = Trainer(os.getcwd())
 train_losses, test_losses = trainer.train(10)

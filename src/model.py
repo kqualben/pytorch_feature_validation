@@ -5,50 +5,48 @@ import torch
 from typing import Tuple, List,Optional
 from torchmetrics import Precision, Recall
 
-LEARNING_RATE = 0.0001
+from torch.utils.data import DataLoader
+
+LEARNING_RATE = 0.001
 
 class ClassifierModel(nn.Module):
   def __init__(self, input_n: int, hidden_n: int, num_classes: int):
     super(ClassifierModel, self).__init__()
+    self.flatten = nn.Flatten() 
     self.model = nn.Sequential(
-        nn.Linear(input_n, hidden_n), #projects data to higher dim. space.
-        nn.BatchNorm1d(hidden_n), #to handle range of input values
-        #ReLU to avoid vanishing gradient, ie signal approaches zero and learning is saturated
-        nn.ReLU(), #learning non-linear patterns
-        nn.Dropout(0.2), #regularization, drop neurons to prevent overfitting
-        #repeat and scale dimensionality back down to input layer
-        nn.Linear(hidden_n, hidden_n //2),
-        nn.BatchNorm1d(hidden_n // 2),
+        nn.Linear(input_n, hidden_n),
         nn.ReLU(),
-        nn.Dropout(0.2),
-        nn.Linear(hidden_n // 2, num_classes)
-        #this final layer outputs the raw logits which are unnormalized scores
+        nn.Linear(hidden_n, hidden_n),
+        nn.ReLU(),
+        nn.Linear(hidden_n, num_classes),
     )
 
   def forward(self, x):
+    if len(x.shape) > 2:
+        x = self.flatten(x)
     return self.model(x)
 
 class Trainer(Preproceessing):
     def __init__(self, root:str, batch_n: Optional[int] = 32):
         super().__init__(root)
         self.batch_n = batch_n
-        self.model = ClassifierModel(input_n=(self.train_set.data.shape[1]), hidden_n=128, num_classes=self.num_classes)
-        self.criterion = nn.CrossEntropyLoss() #applies softmax and converts the logits to probabilities
-        #CE calculates the neg. log likelihood of the correct class
+        self.input_n = 784
+        self.train_loader = DataLoader(self.train_set, batch_size = self.batch_n, shuffle=True)
+        self.test_loader = DataLoader(self.test_set, batch_size = self.batch_n, shuffle=False)
+        self.model = ClassifierModel(input_n=self.input_n, hidden_n=128, num_classes=self.num_classes)
+        self.criterion = nn.CrossEntropyLoss()
         self.optimizer = Adam(self.model.parameters(), lr = LEARNING_RATE)
-        #Adam handles sparse data and gradients, adapts learning rates per param, and uses momemtum which avoids minima
         
     def train_epoch(self) -> int:
         self.model.train()
         train_loss = 0
         correct, total = 0, 0
-
         for data, label in self.train_loader:
-            self.optimizer.zero_grad() #clear gradients
+            self.optimizer.zero_grad()
             output = self.model(data)
             loss = self.criterion(output, label)
-            loss.backward() #how much each weight contributed to being wrong
-            self.optimizer.step() #adjust weights based on backpropagation
+            loss.backward()
+            self.optimizer.step()
 
             train_loss += loss.item()
             _, pred = torch.max(output.data, 1)
@@ -65,6 +63,8 @@ class Trainer(Preproceessing):
         correct, total = 0, 0
         with torch.no_grad():
             for data, label in self.test_loader:
+                if len(label.shape) > 1:
+                    label = label.squeeze()
                 output = self.model(data)
                 loss = self.criterion(output, label)
                 total_loss += loss.item()
@@ -79,7 +79,7 @@ class Trainer(Preproceessing):
         train_losses = []
         test_losses = []
         for e in range(num_epochs):
-            print(f"Epoch: {e}")
+            print(f"\nEpoch: {e}")
             epoch_loss = self.train_epoch()
             train_losses.append(epoch_loss)
 
@@ -94,7 +94,7 @@ class Trainer(Preproceessing):
         metric_precision = Precision(task="multiclass", num_classes=self.num_classes, average="macro")
         metric_recall = Recall(task="multiclass", num_classes=self.num_classes, average="macro")
         with torch.no_grad():
-            for data, label in self.test_set:
+            for data, label in self.test_loader:
                 output = self.model(data)
                 _, pred = torch.max(output.data, 1)
                 total += label.size(0)
