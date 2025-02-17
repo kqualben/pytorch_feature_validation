@@ -42,6 +42,7 @@ class Trainer(Preproceessing):
         self.learning_rate = self.training_config.learning_rate
         self.input_n = 784
         self.train_loader = DataLoader(self.train_set, batch_size = self.batch_n, shuffle=True)
+        self.val_loader = DataLoader(self.val_set, batch_size = self.batch_n, shuffle=True)
         self.test_loader = DataLoader(self.test_set, batch_size = self.batch_n, shuffle=False)
         self.model = ClassifierModel(input_n=self.input_n, hidden_n=128, num_classes=self.num_classes)
         self.criterion = nn.CrossEntropyLoss()
@@ -63,7 +64,7 @@ class Trainer(Preproceessing):
             total += label.size(0)
             correct += (pred == label).sum().item()
         epoch_loss = train_loss / len(self.train_loader)
-        self.logger.info(f">> Loss: {epoch_loss:.2f}, Accuracy: {(100*(correct/total))}")
+        self.logger.info(f">> Loss: {epoch_loss:.2f}, Accuracy: {((correct/total)):.2f}")
         return epoch_loss
 
     def eval_loss(self) -> int:
@@ -71,7 +72,7 @@ class Trainer(Preproceessing):
         total_loss = 0
         correct, total = 0, 0
         with torch.no_grad():
-            for data, label in self.test_loader:
+            for data, label in self.val_loader:
                 if len(label.shape) > 1:
                     label = label.squeeze()
                 output = self.model(data)
@@ -80,9 +81,9 @@ class Trainer(Preproceessing):
                 _, pred = torch.max(output.data, 1)
                 total += label.size(0)
                 correct += (pred == label).sum().item()
-        eval_loss = correct / total
-        self.logger.info(f'>> Test Accuracy: {100 * eval_loss:.2f}%')
-        return eval_loss / len(self.test_loader)
+        eval_loss = total_loss / len(self.val_loader)
+        self.logger.info(f'>> Test Accuracy: {100 * (correct / total):.2f}%')
+        return eval_loss
 
 
     def train(self, num_epochs:int) -> Tuple[List, List]:
