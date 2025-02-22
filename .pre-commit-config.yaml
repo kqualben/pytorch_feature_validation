@@ -18,4 +18,12 @@ repos:
         entry: bash -c 'isort "$@";' --
         language: python
         types: [ python ]
-        
+
+  - repo: local
+    hooks:
+      - id: json-format-python
+        name: "JSON format (Python)"
+        entry: python -c 'import sys, json; file = sys.argv[1]; data = json.load(open(file)); open(file, "w").write(json.dumps(data, indent=2) + "\n")'
+        language: python
+        files: '.*\.json$'
+        types: [file]

@@ -1,7 +1,7 @@
 import datetime
 import os
 from dataclasses import asdict
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
@@ -11,7 +11,14 @@ from torchmetrics import Precision, Recall
 
 from src.configs import TrainConfig
 from src.data_processing import Preproceessing
-from src.utils import logger, plot_losses, save_json, save_pickle
+from src.utils import (
+    logger,
+    plot_activations_distributions,
+    plot_correlation_matrix,
+    plot_losses,
+    save_json,
+    save_pickle,
+)
 
 
 class ClassifierModel(nn.Module):
@@ -44,6 +51,7 @@ class Trainer(Preproceessing):
         self.batch_n = self.training_config.batches
         self.learning_rate = self.training_config.learning_rate
         self.input_n = 784
+        self.hidden_n = 128
         self.train_loader = DataLoader(
             self.train_set, batch_size=self.batch_n, shuffle=True
         )
@@ -54,19 +62,102 @@ class Trainer(Preproceessing):
             self.test_set, batch_size=self.batch_n, shuffle=False
         )
         self.model = ClassifierModel(
-            input_n=self.input_n, hidden_n=128, num_classes=self.num_classes
+            input_n=self.input_n, hidden_n=self.hidden_n, num_classes=self.num_classes
         )
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = Adam(self.model.parameters(), lr=self.learning_rate)
+        # Create Hooks
+        self.activations = {}
+        self.handles = []
+        for name, layer in self.model.named_modules():
+            self.handles.append(layer.register_forward_hook(self._create_hook(name)))
 
-    def train_epoch(self) -> int:
+    def _create_hook(self, name):
+        def hook(module, _, output):
+            self.activations[name] = output.detach()
+
+        return hook
+
+    def analyze_layer(self, name, layer_type):
+        activation = self.activations[name]
+
+        if isinstance(layer_type, nn.Linear):
+            # Linear layers: Check output distribution and weight usage
+            self.logger.info(f"\nLinear Layer {name}:")
+            self.logger.info(f"Output shape: {activation.shape}")
+            self.logger.info(f"Mean activation: {activation.mean().item():.4f}")
+            self.logger.info(f"Activation std: {activation.std().item():.4f}")
+
+        elif isinstance(layer_type, nn.BatchNorm1d):
+            # BatchNorm: Check if normalization is working properly
+            self.logger.info(f"\nBatchNorm Layer {name}:")
+            self.logger.info(
+                f"Mean (should be close to 0): {activation.mean().item():.4f}"
+            )
+            self.logger.info(
+                f"Std (should be close to 1): {activation.std().item():.4f}"
+            )
+
+        elif isinstance(layer_type, nn.ReLU):
+            # ReLU: Check sparsity and dead neurons
+            self.logger.info(f"\nReLU Layer {name}:")
+            sparsity = (activation == 0).float().mean().item()
+            self.logger.info(f"Sparsity (% of zeros): {sparsity * 100:.2f}%")
+
+        elif isinstance(layer_type, nn.Dropout):
+            # Dropout: Verify dropout rate
+            self.logger.info(f"\nDropout Layer {name}:")
+            zeros = (activation == 0).float().mean().item()
+            self.logger.info(f"Actual dropout rate: {zeros * 100:.2f}%")
+
+    def run_layer_analyzer(self):
+        for name, layer in self.model.named_modules():
+            if not isinstance(layer, nn.Sequential):
+                self.analyze_layer(name, layer)
+
+    def summarize_activation_stats(self, activations: Dict[str, torch.Tensor]):
+        """
+        Analyze and visualize feature distributions
+        """
+        # Return basic statistics
+        stats = {}
+        for name, acts in activations.items():
+            stats[name] = {
+                "mean": acts.mean().item(),
+                "std": acts.std().item(),
+                "min": acts.min().item(),
+                "max": acts.max().item(),
+                "zeros_pct": (acts == 0).float().mean().item() * 100,
+            }
+        return stats
+        # return pd.DataFrame(stats).T
+
+    def compute_feature_correlations(self, layer_name: str) -> torch.Tensor:
+        activations = self.activations[layer_name]
+
+        if len(activations.shape) > 2:
+            print(f"reshaping for correlation: {layer_name}")
+            activations = activations.reshape(activations.shape[0], -1)
+
+        return torch.corrcoef(activations.T)
+
+    def train_epoch(self, index: int) -> int:
         self.model.train()
         train_loss = 0
         correct, total = 0, 0
-        for data, label in self.train_loader:
+        for batch_idx, (data, label) in enumerate(self.train_loader):
             self.optimizer.zero_grad()
             output = self.model(data)
             loss = self.criterion(output, label)
+            if (
+                (index == 0 and batch_idx == 0)
+                or (loss.item() > train_loss * 2)
+                or (batch_idx % 100 == 0)
+            ):
+                self.logger.info(
+                    f"\nAnalyzing layers at epoch {index}, batch {batch_idx}"
+                )
+                self.run_layer_analyzer()
             loss.backward()
             self.optimizer.step()
 
@@ -105,7 +196,7 @@ class Trainer(Preproceessing):
         test_losses = []
         for e in range(num_epochs):
             self.logger.info(f"\nEpoch: {e}")
-            epoch_loss = self.train_epoch()
+            epoch_loss = self.train_epoch(e)
             train_losses.append(epoch_loss)
 
             test_loss = self.val_loss()
@@ -140,12 +231,11 @@ class Trainer(Preproceessing):
 
     def train_eval(self) -> None:
         epochs = self.training_config.epochs
-        save_fig = self.training_config.save_fig
-        # Train
         model_dir = (
             f"{self.base_path}/{datetime.datetime.today().strftime('%y%m%d%H%M')}"
         )
         os.mkdir(model_dir)
+
         self.logger = logger(
             directory=model_dir,
             filename=f"training_log.log",
@@ -156,13 +246,49 @@ class Trainer(Preproceessing):
             f"{model_dir}/model_state.pt",
         )
         save_pickle([train_losses, test_losses], model_dir, "train_test_losses.pkl")
-        if save_fig:
-            save_fig = f"{model_dir}/train_loss_plot.png"
-        plot_losses(train_losses, test_losses, save=save_fig)
-        # Final Evaluation
+
+        plot = plot_losses(train_losses, test_losses)
+        path = f"{model_dir}/train_loss_plot.png"
+        plot.savefig(path)
+        plot.close()
+        self.logger.info(f"Saved: {path}")
+
+        self.logger.info(f"\nFinal Layer Analysis:")
+        self.run_layer_analyzer()
+
+        save_pickle(self.activations, model_dir, "activations.pkl")
+        activation_stats = self.summarize_activation_stats(self.activations)
+        save_json(activation_stats, model_dir, "activation_stats.json")
+        plot = plot_activations_distributions(self.activations)
+        path = f"{model_dir}/activation_distribution_plot.png"
+        plot.savefig(path)
+        self.logger.info(f"Saved: {path}")
+
+        corr_matrices = {}
+
+        os.mkdir(f"{model_dir}/corr_matrices/")
+        for name, layer in self.model.named_modules():
+            if not isinstance(layer, nn.Sequential):
+                self.logger.info(f"Computing Feature Correlations for: {name}")
+                corr_matrix = self.compute_feature_correlations(name)
+                corr_matrices[name] = corr_matrix
+                plot = plot_correlation_matrix(corr_matrix, name)
+                corr_path = f"{model_dir}/corr_matrices/{name}_heatmap.png"
+                plot.savefig(corr_path)
+                self.logger.info(f"Saved: {corr_path}")
+        save_pickle(corr_matrices, model_dir, "corr_matrices.pkl")
+
         accuracy, precision, recall = self.eval()
         log_dict = asdict(self.training_config)
         log_dict.update(
-            {"accuracy": accuracy, "precision": precision, "recall": recall}
+            {
+                "accuracy": accuracy,
+                "precision": precision,
+                "recall": recall,
+                "num_classes": self.num_classes,
+                "input_n": self.input_n,
+                "hidden_n": self.hidden_n,
+            }
         )
         save_json(log_dict, model_dir, "train_config.json")
+        self.logger.info(f"All results logged to: {model_dir}")

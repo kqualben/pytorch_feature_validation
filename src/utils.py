@@ -2,14 +2,13 @@ import json
 import logging
 import os
 import pickle
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 
-def plot_losses(
-    train: List[float], test: List[float], save: Optional[str]
-) -> plt.figure:
+def plot_losses(train: List[float], test: List[float]) -> plt.figure:
     """
     function to plot train vs test losses.
 
@@ -27,10 +26,35 @@ def plot_losses(
     plt.title("Train vs Test Loss")
     plt.legend()
     plt.tight_layout()
-    if save:
-        plt.savefig(save)
-        plt.close()
-    return plt.show()
+    return plt
+
+
+def plot_correlation_matrix(corr_matrix, layer_name: str) -> plt.figure:
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(corr_matrix.numpy(), cmap="coolwarm", center=0)
+    plt.title(f"Feature Correlations - {layer_name}")
+    plt.tight_layout()
+    return plt
+
+
+def plot_activations_distributions(activations: Dict) -> plt.figure:
+    fig, axes = plt.subplots(len(activations), 2, figsize=(15, 5 * len(activations)))
+
+    for idx, (name, acts) in enumerate(activations.items()):
+        acts_flat = acts.reshape(-1).numpy()
+
+        # Histogram
+        axes[idx, 0].hist(acts_flat, bins=50)
+        axes[idx, 0].set_title(f"{name} - Distribution")
+        axes[idx, 0].set_xlabel("Activation Value")
+        axes[idx, 0].set_ylabel("Frequency")
+
+        # Box plot
+        axes[idx, 1].boxplot(acts_flat)
+        axes[idx, 1].set_title(f"{name} - Box Plot")
+
+    plt.tight_layout()
+    return plt
 
 
 def save_json(data: dict, directory: str, filename: str) -> str:

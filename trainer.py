@@ -4,10 +4,9 @@ from src.configs import TrainConfig
 from src.model import Trainer
 
 train_dict = {
-    "epochs": 10,
+    "epochs": 15,
     "batches": 32,
     "learning_rate": 0.0001,
-    "save_fig": True,
 }
 
 train_config = TrainConfig(**train_dict)
