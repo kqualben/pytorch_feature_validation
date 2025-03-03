@@ -116,10 +116,6 @@ class Trainer(Preproceessing):
                 self.analyze_layer(name, layer)
 
     def summarize_activation_stats(self, activations: Dict[str, torch.Tensor]):
-        """
-        Analyze and visualize feature distributions
-        """
-        # Return basic statistics
         stats = {}
         for name, acts in activations.items():
             stats[name] = {
@@ -130,7 +126,6 @@ class Trainer(Preproceessing):
                 "zeros_pct": (acts == 0).float().mean().item() * 100,
             }
         return stats
-        # return pd.DataFrame(stats).T
 
     def compute_feature_correlations(self, layer_name: str) -> torch.Tensor:
         activations = self.activations[layer_name]
