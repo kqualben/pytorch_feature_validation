@@ -4,7 +4,7 @@ from src.configs import TrainConfig
 from src.model import Trainer
 
 train_dict = {
-    "epochs": 15,
+    "epochs": 10,
     "batches": 32,
     "learning_rate": 0.0001,
 }

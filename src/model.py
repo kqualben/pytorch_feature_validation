@@ -13,6 +13,7 @@ from src.configs import TrainConfig
 from src.data_processing import Preproceessing
 from src.utils import (
     logger,
+    plot_gradient_norms,
     plot_activations_distributions,
     plot_correlation_matrix,
     plot_losses,
@@ -136,10 +137,19 @@ class Trainer(Preproceessing):
 
         return torch.corrcoef(activations.T)
 
+    def compute_gradient_norm(self, model):
+        total_norm = 0.0
+        for p in model.parameters():
+            if p.grad is not None:
+                param_norm = p.grad.norm(2)  # L2 norm of gradients
+                total_norm += param_norm.item() ** 2
+        return total_norm ** 0.5  # Square root to get L2 norm
+
     def train_epoch(self, index: int) -> int:
         self.model.train()
         train_loss = 0
         correct, total = 0, 0
+        epoch_norms = []
         for batch_idx, (data, label) in enumerate(self.train_loader):
             self.optimizer.zero_grad()
             output = self.model(data)
@@ -154,6 +164,8 @@ class Trainer(Preproceessing):
                 )
                 self.run_layer_analyzer()
             loss.backward()
+            grad_norm = self.compute_gradient_norm(self.model)
+            epoch_norms.append(grad_norm)
             self.optimizer.step()
 
             train_loss += loss.item()
@@ -164,7 +176,7 @@ class Trainer(Preproceessing):
         self.logger.info(
             f">> Training Loss: {epoch_loss:.2f}, Accuracy: {((correct/total)):.2f}"
         )
-        return epoch_loss
+        return epoch_loss, epoch_norms
 
     def val_loss(self) -> int:
         self.model.eval()
@@ -189,15 +201,16 @@ class Trainer(Preproceessing):
     def train(self, num_epochs: int) -> Tuple[List, List]:
         train_losses = []
         test_losses = []
+        grad_norms = []
         for e in range(num_epochs):
             self.logger.info(f"\nEpoch: {e}")
-            epoch_loss = self.train_epoch(e)
+            epoch_loss, epoch_norms = self.train_epoch(e)
             train_losses.append(epoch_loss)
-
             test_loss = self.val_loss()
             test_losses.append(test_loss)
+            grad_norms.append(sum(epoch_norms) / len(epoch_norms))
 
-        return train_losses, test_losses
+        return train_losses, test_losses, grad_norms
 
     def eval(self) -> None:
         self.model.eval()
@@ -235,12 +248,20 @@ class Trainer(Preproceessing):
             directory=model_dir,
             filename=f"training_log.log",
         )
-        train_losses, test_losses = self.train(epochs)
+        train_losses, test_losses, grad_norms = self.train(epochs)
         torch.save(
             self.model.state_dict(),
             f"{model_dir}/model_state.pt",
         )
         save_pickle([train_losses, test_losses], model_dir, "train_test_losses.pkl")
+        save_pickle(grad_norms, model_dir, "gradient_norms.pkl")
+
+
+        plot = plot_gradient_norms(grad_norms, epochs)
+        path = f"{model_dir}/gradient_norms_plot.png"
+        plot.savefig(path)
+        plot.close()
+        self.logger.info(f"Saved: {path}")
 
         plot = plot_losses(train_losses, test_losses)
         path = f"{model_dir}/train_loss_plot.png"

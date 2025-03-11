@@ -14,7 +14,6 @@ def plot_losses(train: List[float], test: List[float]) -> plt.figure:
 
     :param List[float] train: list of train losses
     :param List[float] test: list of test losses
-    :param Optional[str] save: save plot to given path. If falsey, then the plot wont be saved.
 
     :return plt.figure:
     """
@@ -25,6 +24,24 @@ def plot_losses(train: List[float], test: List[float]) -> plt.figure:
     plt.ylabel("Loss")
     plt.title("Train vs Test Loss")
     plt.legend()
+    plt.tight_layout()
+    return plt
+
+def plot_gradient_norms(gradient_norms: List[float], num_epochs: int) -> plt.figure:
+    """
+    function to plot gradient norms.
+
+    :param List[float] gradient_norms: list of gradients
+    :param float num_epochs: number of epochs used in training
+
+    :return plt.figure:
+    """
+    plt.figure()
+    plt.plot(range(num_epochs), gradient_norms)
+    plt.xlabel("Epochs")
+    plt.ylabel("Gradient Norm")
+    plt.title("Gradient Norms Over Epochs")
+    plt.yscale("log")
     plt.tight_layout()
     return plt
 
